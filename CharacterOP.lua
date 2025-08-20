@@ -49,7 +49,7 @@ local CharacterAI
 do
     local ok, mod = pcall(function()
         return loadstring(game:HttpGet(
-            "https://raw.githubusercontent.com/1lRzo/ReworkCharacter/refs/heads/main/CharacterAI-Luau",
+            "https://raw.githubusercontent.com/1lRzo/ReworkCharacter/refs/heads/main/CharacterAI-Luau.lua",
             true))()
     end)
     if ok and mod then
