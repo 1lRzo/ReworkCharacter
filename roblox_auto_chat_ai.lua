@@ -398,6 +398,7 @@ function Security.parseCommaList(rawText)
     local list = {}
     for item in string.gmatch(rawText or "", "([^,]+)") do
         local cleaned = Security.normalize(item)
+
         if cleaned ~= "" then
             table.insert(list, cleaned)
         end
@@ -799,6 +800,7 @@ local function playViaAudioAPI(assetId, onFinished)
             error("AudioPlayer não carregou asset customizado")
         end
 
+
         local done = false
         local function cleanup()
             if done then
@@ -1198,6 +1200,7 @@ local function createInputBox(parent, placeholder, defaultText, height, multilin
     box.TextSize = 12
     box.TextXAlignment = Enum.TextXAlignment.Left
     box.MultiLine = multiline == true
+
     box.TextWrapped = multiline == true
     box.TextYAlignment = multiline and Enum.TextYAlignment.Top or Enum.TextYAlignment.Center
     box.Parent = parent
@@ -1599,6 +1602,7 @@ function UI.build(callbacks)
         end
     end
 
+
     for _, item in ipairs(modeList) do
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(0.32, 0, 1, 0)
@@ -1822,3 +1826,668 @@ function UI.build(callbacks)
         b.MouseButton1Click:Connect(function()
             Config.FishAudio.OutputMode = opt.id
             refreshOutMode()
+        end)
+    end
+    refreshOutMode()
+
+    createSwitchRow(
+        cardVoiceEngine,
+        "Auto-Unmute VC ao falar",
+        "Tenta abrir VoiceChatInternal / AudioDeviceInput durante a fala",
+        Config.FishAudio.AutoToggleVC,
+        function(val)
+            Config.FishAudio.AutoToggleVC = val
+        end
+    )
+
+    createSwitchRow(
+        cardVoiceEngine,
+        "Realce de Voz no Alto-falante",
+        "Equaliza médios para voz mais nítida no celular sem fone",
+        Config.FishAudio.VoiceBoostEQ,
+        function(val)
+            Config.FishAudio.VoiceBoostEQ = val
+        end
+    )
+
+    -- Velocidade / Volume / Formato
+    local vParamHint = Instance.new("TextLabel")
+    vParamHint.Size = UDim2.new(1, 0, 0, 14)
+    vParamHint.BackgroundTransparency = 1
+    vParamHint.Font = Enum.Font.Gotham
+    vParamHint.Text = "Velocidade (0.5 - 2.0)       Volume (0 - 5)       Formato"
+    vParamHint.TextColor3 = Theme.TextMuted
+    vParamHint.TextSize = 10
+    vParamHint.TextXAlignment = Enum.TextXAlignment.Left
+    vParamHint.Parent = cardVoiceEngine
+
+    local audioParamsRow = Instance.new("Frame")
+    audioParamsRow.Size = UDim2.new(1, 0, 0, 30)
+    audioParamsRow.BackgroundTransparency = 1
+    audioParamsRow.Parent = cardVoiceEngine
+
+    local speedBox = createInputBox(audioParamsRow, "Speed", tostring(Config.FishAudio.Speed), 30)
+    speedBox.Size = UDim2.new(0.31, 0, 1, 0)
+    local volBox = createInputBox(audioParamsRow, "Vol", tostring(Config.FishAudio.PlaybackVolume), 30)
+    volBox.Size = UDim2.new(0.31, 0, 1, 0)
+    volBox.Position = UDim2.new(0.345, 0, 0, 0)
+
+    local fmtBtn = Instance.new("TextButton")
+    fmtBtn.Size = UDim2.new(0.31, 0, 1, 0)
+    fmtBtn.Position = UDim2.new(0.69, 0, 0, 0)
+    fmtBtn.BackgroundColor3 = Theme.Input
+    fmtBtn.Font = Enum.Font.GothamBold
+    fmtBtn.Text = "MP3"
+    fmtBtn.TextColor3 = Theme.TextMain
+    fmtBtn.TextSize = 11
+    fmtBtn.Parent = audioParamsRow
+    makeCorner(fmtBtn, 8)
+    makeStroke(fmtBtn, Color3.fromRGB(48, 55, 76), 1, 0.4)
+
+    speedBox.FocusLost:Connect(function()
+        Config.FishAudio.Speed = math.clamp(tonumber(speedBox.Text) or Config.FishAudio.Speed, 0.5, 2.0)
+        speedBox.Text = tostring(Config.FishAudio.Speed)
+    end)
+    volBox.FocusLost:Connect(function()
+        Config.FishAudio.PlaybackVolume = math.clamp(tonumber(volBox.Text) or Config.FishAudio.PlaybackVolume, 0, 5)
+        volBox.Text = tostring(Config.FishAudio.PlaybackVolume)
+    end)
+    fmtBtn.MouseButton1Click:Connect(function()
+        Config.FishAudio.Format = (Config.FishAudio.Format == "mp3") and "wav" or "mp3"
+        fmtBtn.Text = string.upper(Config.FishAudio.Format)
+    end)
+
+    -- Teste de Voz + Diagnóstico VC do Jogo
+    local cardDiag = createCard(pageVoz, "Diagnóstico & Teste de Voz")
+
+    local diagLabel = Instance.new("TextLabel")
+    diagLabel.Size = UDim2.new(1, 0, 0, 42)
+    diagLabel.BackgroundColor3 = Theme.Input
+    diagLabel.Font = Enum.Font.Gotham
+    diagLabel.Text = VoiceTTS.inspectVoiceEnvironment().Summary
+    diagLabel.TextColor3 = Theme.TextMuted
+    diagLabel.TextSize = 10
+    diagLabel.TextWrapped = true
+    diagLabel.Parent = cardDiag
+    makeCorner(diagLabel, 8)
+
+    local voiceBtnsRow = Instance.new("Frame")
+    voiceBtnsRow.Size = UDim2.new(1, 0, 0, 34)
+    voiceBtnsRow.BackgroundTransparency = 1
+    voiceBtnsRow.Parent = cardDiag
+
+    local testVoiceBtn = Instance.new("TextButton")
+    testVoiceBtn.Size = UDim2.new(0.44, 0, 1, 0)
+    testVoiceBtn.BackgroundColor3 = Theme.Accent
+    testVoiceBtn.Font = Enum.Font.GothamBold
+    testVoiceBtn.Text = "Testar Voz"
+    testVoiceBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    testVoiceBtn.TextSize = 11
+    testVoiceBtn.Parent = voiceBtnsRow
+    makeCorner(testVoiceBtn, 8)
+
+    local diagBtn = Instance.new("TextButton")
+    diagBtn.Size = UDim2.new(0.32, 0, 1, 0)
+    diagBtn.Position = UDim2.new(0.46, 0, 0, 0)
+    diagBtn.BackgroundColor3 = Color3.fromRGB(45, 52, 74)
+    diagBtn.Font = Enum.Font.GothamBold
+    diagBtn.Text = "Verificar VC"
+    diagBtn.TextColor3 = Theme.TextMain
+    diagBtn.TextSize = 11
+    diagBtn.Parent = voiceBtnsRow
+    makeCorner(diagBtn, 8)
+
+    local stopVoiceBtn = Instance.new("TextButton")
+    stopVoiceBtn.Size = UDim2.new(0.20, 0, 1, 0)
+    stopVoiceBtn.Position = UDim2.new(0.80, 0, 0, 0)
+    stopVoiceBtn.BackgroundColor3 = Theme.Danger
+    stopVoiceBtn.Font = Enum.Font.GothamBold
+    stopVoiceBtn.Text = "Parar"
+    stopVoiceBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    stopVoiceBtn.TextSize = 11
+    stopVoiceBtn.Parent = voiceBtnsRow
+    makeCorner(stopVoiceBtn, 8)
+
+    testVoiceBtn.MouseButton1Click:Connect(function()
+        testVoiceBtn.Text = "Gerando..."
+        task.spawn(function()
+            local ok, msg = callbacks.onTestVoice()
+            if not ok then
+                addLog("Erro Voz", tostring(msg), Theme.Danger)
+            else
+                addLog("Teste Voz", "Áudio Fish Free reproduzido.", Theme.Success)
+            end
+            testVoiceBtn.Text = "Testar Voz"
+        end)
+    end)
+
+    diagBtn.MouseButton1Click:Connect(function()
+        local info = VoiceTTS.inspectVoiceEnvironment()
+        diagLabel.Text = info.Summary
+        addLog("Diagnóstico VC", info.Summary, Color3.fromRGB(165, 215, 255))
+    end)
+
+    stopVoiceBtn.MouseButton1Click:Connect(function()
+        VoiceTTS.stopCurrent()
+        updateVoiceStatus("Som interrompido", Theme.Warning)
+    end)
+
+    UI.Elements.VoiceStatusLabel = voiceStatusLbl
+
+    -- ---------------------------------------------------------------------
+    -- ABA 4: FILTROS E CONTROLE
+    -- ---------------------------------------------------------------------
+    local cardTiming = createCard(pageFiltros, "Intervalo e Probabilidade")
+    local tHint = Instance.new("TextLabel")
+    tHint.Size = UDim2.new(1, 0, 0, 14)
+    tHint.BackgroundTransparency = 1
+    tHint.Font = Enum.Font.Gotham
+    tHint.Text = "Intervalo entre falas (s)                    Chance aleatória (%)"
+    tHint.TextColor3 = Theme.TextMuted
+    tHint.TextSize = 10
+    tHint.TextXAlignment = Enum.TextXAlignment.Left
+    tHint.Parent = cardTiming
+
+    local ctrlRow = Instance.new("Frame")
+    ctrlRow.Size = UDim2.new(1, 0, 0, 32)
+    ctrlRow.BackgroundTransparency = 1
+    ctrlRow.Parent = cardTiming
+
+    local cdBox = createInputBox(ctrlRow, "Intervalo", tostring(Config.CooldownSeconds), 32)
+    cdBox.Size = UDim2.new(0.48, 0, 1, 0)
+    local chanceBox = createInputBox(ctrlRow, "Chance %", tostring(Config.RandomReplyChance), 32)
+    chanceBox.Size = UDim2.new(0.48, 0, 1, 0)
+    chanceBox.Position = UDim2.new(0.52, 0, 0, 0)
+
+    cdBox.FocusLost:Connect(function()
+        Config.CooldownSeconds = math.clamp(tonumber(cdBox.Text) or Config.CooldownSeconds, 1, 120)
+        cdBox.Text = tostring(Config.CooldownSeconds)
+
+    end)
+    chanceBox.FocusLost:Connect(function()
+        Config.RandomReplyChance = math.clamp(math.floor(tonumber(chanceBox.Text) or Config.RandomReplyChance), 0, 100)
+        chanceBox.Text = tostring(Config.RandomReplyChance)
+    end)
+
+    local cardLists = createCard(pageFiltros, "Listas de Bloqueio")
+    local ignoredBox = createInputBox(cardLists, "Jogadores ignorados (Ex: Fulano, Ciclano)", "", 32)
+    ignoredBox.FocusLost:Connect(function()
+        Config.IgnoredPlayers = Security.parseCommaList(ignoredBox.Text)
+    end)
+
+    local forbiddenBox = createInputBox(cardLists, "Palavras proibidas (separadas por vírgula)", "", 32)
+    forbiddenBox.FocusLost:Connect(function()
+        Config.ForbiddenWords = Security.parseCommaList(forbiddenBox.Text)
+    end)
+
+    local cardActions = createCard(pageFiltros, "Histórico e Comandos")
+    local clearHistBtn = Instance.new("TextButton")
+    clearHistBtn.Size = UDim2.new(1, 0, 0, 34)
+    clearHistBtn.BackgroundColor3 = Theme.Danger
+    clearHistBtn.Font = Enum.Font.GothamBold
+    clearHistBtn.Text = "Limpar Memória de Conversa"
+    clearHistBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    clearHistBtn.TextSize = 12
+    clearHistBtn.Parent = cardActions
+    makeCorner(clearHistBtn, 8)
+    clearHistBtn.MouseButton1Click:Connect(function()
+        callbacks.onClearHistory()
+    end)
+
+    local cmdHint = Instance.new("TextLabel")
+    cmdHint.Size = UDim2.new(1, 0, 0, 16)
+    cmdHint.BackgroundTransparency = 1
+    cmdHint.Font = Enum.Font.Gotham
+    cmdHint.Text = "Comandos no chat: !ia on | !ia off | !ia clear"
+    cmdHint.TextColor3 = Theme.TextMuted
+    cmdHint.TextSize = 11
+    cmdHint.TextXAlignment = Enum.TextXAlignment.Left
+    cmdHint.Parent = cardActions
+
+    -- ---------------------------------------------------------------------
+    -- ABA 5: HISTÓRICO
+    -- ---------------------------------------------------------------------
+    local logScroll = Instance.new("ScrollingFrame")
+    logScroll.Size = UDim2.new(1, 0, 1, -4)
+    logScroll.BackgroundColor3 = Theme.Card
+    logScroll.BackgroundTransparency = 0.08
+    logScroll.BorderSizePixel = 0
+    logScroll.ScrollBarThickness = 3
+    logScroll.ScrollBarImageColor3 = Theme.Accent
+    logScroll.CanvasSize = UDim2.fromOffset(0, 0)
+    logScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    logScroll.Parent = pageHistorico
+    makeCorner(logScroll, 10)
+    makeStroke(logScroll, Theme.Stroke, 1, 0.5)
+
+    local logLayout = Instance.new("UIListLayout")
+    logLayout.Padding = UDim.new(0, 5)
+    logLayout.Parent = logScroll
+
+    local logPad = Instance.new("UIPadding")
+    logPad.PaddingTop = UDim.new(0, 8)
+    logPad.PaddingBottom = UDim.new(0, 8)
+    logPad.PaddingLeft = UDim.new(0, 10)
+    logPad.PaddingRight = UDim.new(0, 10)
+    logPad.Parent = logScroll
+
+    UI.LogCallback = function(tag, text, color)
+        if not logScroll or not logScroll.Parent then
+            return
+        end
+        local row = Instance.new("TextLabel")
+        row.Size = UDim2.new(1, -4, 0, 0)
+        row.AutomaticSize = Enum.AutomaticSize.Y
+        row.BackgroundTransparency = 1
+        row.Font = Enum.Font.Gotham
+        row.Text = string.format("[%s] %s", tag, text)
+        row.TextColor3 = color or Theme.TextMain
+        row.TextSize = 11
+        row.TextWrapped = true
+        row.TextXAlignment = Enum.TextXAlignment.Left
+        row.Parent = logScroll
+
+        local children = logScroll:GetChildren()
+        if #children > 65 then
+            for _, child in ipairs(children) do
+                if child:IsA("TextLabel") then
+                    child:Destroy()
+                    break
+                end
+            end
+        end
+    end
+
+    -- Minimizar com pílula compacta para celular
+    local minimized = false
+    minBtn.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        local curW, curH = getWindowSize()
+        if minimized then
+            tabBar.Visible = false
+            contentHolder.Visible = false
+            statusBadge.Visible = false
+            subTitleLabel.Visible = false
+            titleLabel.Position = UDim2.fromOffset(14, 13)
+            miniPowerBtn.Visible = true
+            tweenProp(mainFrame, { Size = UDim2.fromOffset(275, 46) }, 0.22)
+            minBtn.Text = "+"
+        else
+            miniPowerBtn.Visible = false
+            statusBadge.Visible = true
+            subTitleLabel.Visible = true
+            titleLabel.Position = UDim2.fromOffset(14, 6)
+            tweenProp(mainFrame, { Size = UDim2.fromOffset(curW, curH) }, 0.22)
+            task.delay(0.14, function()
+                if not minimized and tabBar and contentHolder then
+                    tabBar.Visible = true
+                    contentHolder.Visible = true
+                end
+            end)
+            minBtn.Text = "—"
+        end
+    end)
+
+    closeBtn.MouseButton1Click:Connect(function()
+        if globalEnv.__RobloxAutoAI_Cleanup then
+            globalEnv.__RobloxAutoAI_Cleanup()
+        end
+    end)
+
+    UI.Elements.SyncPower = syncPowerState
+    UI.Elements.StatusDot = statusDot
+    UI.Elements.StatusText = statusText
+end
+
+function UI.setStatus(status)
+    local dot = UI.Elements.StatusDot
+    local lbl = UI.Elements.StatusText
+    if not dot or not lbl then
+        return
+    end
+    lbl.Text = status
+    if status == "Conectado" then
+        tweenProp(dot, { BackgroundColor3 = Theme.Success }, 0.15)
+    elseif status == "Erro" then
+        tweenProp(dot, { BackgroundColor3 = Theme.Danger }, 0.15)
+    else
+        tweenProp(dot, { BackgroundColor3 = Theme.Warning }, 0.15)
+    end
+end
+
+-- =========================================================================
+-- MÓDULO 9: PROCESSAMENTO DE MENSAGENS E DECISÃO
+-- =========================================================================
+local MessageProcessor = {}
+
+local function isMentioningMe(text)
+    local lower = Security.normalize(text)
+    local userLower = Security.normalize(LocalPlayer.Name)
+    local dispLower = Security.normalize(LocalPlayer.DisplayName)
+
+    if userLower ~= "" and lower:find(userLower, 1, true) then
+        return true
+    end
+    if dispLower ~= "" and #dispLower >= 2 and lower:find(dispLower, 1, true) then
+        return true
+    end
+    return false
+end
+
+local function isPlayerNearby(player)
+    if not player or not player.Character or not LocalPlayer.Character then
+        return false
+    end
+    local rootA = player.Character:FindFirstChild("HumanoidRootPart")
+    local rootB = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if rootA and rootB then
+        return (rootA.Position - rootB.Position).Magnitude <= Config.MaxProximityStuds
+    end
+    return false
+end
+
+local function shouldReplyToMessage(player, playerName, displayName, text)
+    local mentioned = isMentioningMe(text)
+
+    if Config.ResponseMode == "MentionOnly" then
+        return mentioned
+    elseif Config.ResponseMode == "DirectOnly" then
+        if mentioned then
+            return true
+        end
+        local inActiveWindow = (Runtime.LastDirectTalker == playerName) and ((os.clock() - Runtime.LastDirectTime) <= Config.ConversationActiveWindow)
+        if inActiveWindow then
+            return true
+        end
+        if player and isPlayerNearby(player) then
+            local lower = Security.normalize(text)
+            if lower:find("%?") or lower:match("^oi") or lower:match("^ola") or lower:match("^ei") or lower:match("^mano") or lower:match("^cara") then
+                return true
+            end
+        end
+        return false
+    elseif Config.ResponseMode == "All" then
+        if mentioned then
+            return true
+        end
+        return math.random(1, 100) <= Config.RandomReplyChance
+    end
+
+    return false
+end
+
+function MessageProcessor.handleOwnerCommand(rawText)
+    local lower = Security.normalize(rawText)
+    local prefix = Security.normalize(Config.CommandPrefix)
+    if lower:sub(1, #prefix) ~= prefix then
+        return false
+    end
+
+    local arg = Security.trim(lower:sub(#prefix + 1))
+    if arg == "on" then
+        Config.Enabled = true
+        if UI.Elements.SyncPower then
+            UI.Elements.SyncPower()
+        end
+        addLog("Comando", "IA ativada via comando.", Color3.fromRGB(140, 200, 255))
+        return true
+    elseif arg == "off" then
+        Config.Enabled = false
+        if UI.Elements.SyncPower then
+            UI.Elements.SyncPower()
+        end
+        addLog("Comando", "IA desativada via comando.", Color3.fromRGB(140, 200, 255))
+        return true
+    elseif arg == "clear" then
+        ContextManager.clear()
+        addLog("Comando", "Histórico limpo via comando.", Color3.fromRGB(140, 200, 255))
+        return true
+    end
+    return false
+end
+
+function MessageProcessor.onIncomingChat(data)
+    if not data or type(data.Text) ~= "string" then
+        return
+    end
+
+    local cleanInput = Security.trim(data.Text)
+    if cleanInput == "" then
+        return
+    end
+
+    if data.UserId == LocalPlayer.UserId or data.Name == LocalPlayer.Name then
+        MessageProcessor.handleOwnerCommand(cleanInput)
+        return
+    end
+
+    local dedupKey = tostring(data.UniqueId or (tostring(data.Name) .. "|" .. cleanInput .. "|" .. tostring(math.floor(os.clock() / 2))))
+    if not Security.markMessageProcessed(dedupKey) then
+        return
+    end
+
+    local speakerLabel = data.DisplayName or data.Name or "Jogador"
+
+    if Security.isPlayerIgnored(data.Name, data.DisplayName) then
+        return
+    end
+    if Security.containsForbiddenWord(cleanInput) then
+        return
+    end
+
+    ContextManager.addMessage("user", speakerLabel, cleanInput)
+    addLog(speakerLabel, cleanInput, Theme.TextMain)
+
+    if not Config.Enabled then
+        return
+    end
+
+    if Runtime.IsGenerating then
+        return
+    end
+    if (os.clock() - Runtime.LastReplyTick) < Config.CooldownSeconds then
+        return
+    end
+
+    if not shouldReplyToMessage(data.Player, data.Name, data.DisplayName, cleanInput) then
+        return
+    end
+
+    Runtime.IsGenerating = true
+
+    task.spawn(function()
+        local okDone, errRun = pcall(function()
+            local apiMessages = ContextManager.buildApiPayloadMessages(nil, nil)
+            local ok, rawReply = AIClient.requestCompletion(apiMessages)
+            if not ok then
+                addLog("Erro API", tostring(rawReply), Theme.Danger)
+                return
+            end
+
+            local safeReply, blockReason = Security.sanitizeOutgoingMessage(rawReply)
+            if not safeReply then
+                addLog("Segurança", tostring(blockReason), Theme.Warning)
+                return
+            end
+
+            local sentSomething = false
+
+            if Config.SendTextInChat or not Config.FishAudio.Enabled then
+                local sentOk, sendErr = ChatSender.send(safeReply)
+                if sentOk then
+                    sentSomething = true
+                    addLog("Você (Texto)", safeReply, Theme.Success)
+                else
+                    addLog("Erro Chat", "Falha ao enviar: " .. tostring(sendErr), Theme.Danger)
+                end
+            end
+
+            if Config.FishAudio.Enabled then
+                local voiceOk, voiceMsg = VoiceTTS.synthesizeAndSpeak(safeReply)
+                if voiceOk then
+                    sentSomething = true
+                    addLog("Você (Áudio)", safeReply, Color3.fromRGB(130, 215, 255))
+                else
+                    addLog("Erro Áudio", tostring(voiceMsg), Theme.Danger)
+                end
+            end
+
+            if sentSomething then
+                Security.recordOutput(safeReply)
+                ContextManager.addMessage("assistant", LocalPlayer.DisplayName or LocalPlayer.Name, safeReply)
+                Runtime.LastReplyTick = os.clock()
+                Runtime.LastDirectTalker = data.Name
+                Runtime.LastDirectTime = os.clock()
+            end
+        end)
+
+        if not okDone then
+            addLog("Erro Interno", tostring(errRun), Theme.Danger)
+        end
+
+        Runtime.IsGenerating = false
+    end)
+end
+
+-- =========================================================================
+-- MÓDULO 10: CAPTURA DE MENSAGENS DO CHAT
+-- =========================================================================
+local ChatListener = {}
+
+function ChatListener.start()
+    local chatType = Environment.getChatSystemType()
+
+    trackConnection(LocalPlayer.Chatted:Connect(function(msg)
+        MessageProcessor.handleOwnerCommand(msg)
+    end))
+
+    if chatType == "TextChatService" then
+        trackConnection(TextChatService.MessageReceived:Connect(function(textChatMessage)
+            local source = textChatMessage.TextSource
+            if not source then
+                return
+            end
+
+            local player = Players:GetPlayerByUserId(source.UserId)
+            MessageProcessor.onIncomingChat({
+                UniqueId = "tcs_" .. tostring(textChatMessage.MessageId),
+                Player = player,
+                UserId = source.UserId,
+                Name = player and player.Name or tostring(source.Name),
+                DisplayName = player and player.DisplayName or tostring(source.Name),
+                Text = textChatMessage.Text,
+            })
+        end))
+        return
+    end
+
+    if chatType == "LegacyChat" then
+        local legacyEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        local onDoneFiltering = legacyEvents and legacyEvents:FindFirstChild("OnMessageDoneFiltering")
+        if onDoneFiltering and onDoneFiltering:IsA("RemoteEvent") then
+            trackConnection(onDoneFiltering.OnClientEvent:Connect(function(messageData)
+                if type(messageData) ~= "table" then
+                    return
+                end
+                local speakerName = messageData.FromSpeaker
+                if not speakerName or speakerName == "System" then
+                    return
+                end
+                local player = Players:FindFirstChild(speakerName)
+                if not player then
+                    return
+                end
+
+                MessageProcessor.onIncomingChat({
+                    UniqueId = "leg_" .. tostring(messageData.ID or (speakerName .. "_" .. tostring(messageData.Time))),
+                    Player = player,
+                    UserId = player.UserId,
+                    Name = player.Name,
+
+                    DisplayName = player.DisplayName,
+                    Text = messageData.Message,
+                })
+            end))
+            return
+        end
+    end
+
+    local function hookPlayer(plr)
+        if plr == LocalPlayer then
+            return
+        end
+        trackConnection(plr.Chatted:Connect(function(msg)
+            MessageProcessor.onIncomingChat({
+                UniqueId = nil,
+                Player = plr,
+                UserId = plr.UserId,
+                Name = plr.Name,
+                DisplayName = plr.DisplayName,
+                Text = msg,
+            })
+        end))
+    end
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        hookPlayer(plr)
+    end
+    trackConnection(Players.PlayerAdded:Connect(hookPlayer))
+end
+
+-- =========================================================================
+-- MÓDULO 11: INICIALIZAÇÃO E ENCERRAMENTO
+-- =========================================================================
+AIClient.setStatusCallback(function(status)
+    UI.setStatus(status)
+end)
+
+VoiceTTS.setStatusCallback(function(text, color)
+    local lbl = UI.Elements.VoiceStatusLabel
+    if lbl then
+        lbl.Text = "Status Áudio: " .. text
+        if color then
+            lbl.TextColor3 = color
+        end
+    end
+end)
+
+UI.build({
+    onTestAI = function()
+        local testMessages = ContextManager.buildApiPayloadMessages("JogadorTeste", "oi, tudo bem por ai?")
+        local ok, reply = AIClient.requestCompletion(testMessages)
+        if not ok then
+            return false, reply
+        end
+        local cleaned = Security.stripEmojis(reply)
+        cleaned = Security.truncateSafely(cleaned, Config.MaxChars)
+        addLog("Teste IA", cleaned, Color3.fromRGB(165, 225, 255))
+        return true, cleaned
+    end,
+    onTestVoice = function()
+        return VoiceTTS.synthesizeAndSpeak("E ai, tudo certo por aqui? Testando minha voz agora.")
+    end,
+    onClearHistory = function()
+        ContextManager.clear()
+        addLog("Sistema", "Histórico de contexto limpo.", Color3.fromRGB(140, 200, 255))
+    end,
+})
+
+ChatListener.start()
+addLog("Sistema", "Inicializado (" .. Environment.getChatSystemType() .. ").", Color3.fromRGB(140, 200, 255))
+
+globalEnv.__RobloxAutoAI_Cleanup = function()
+    Config.Enabled = false
+    VoiceTTS.stopCurrent()
+    for _, conn in ipairs(Connections) do
+        pcall(function()
+            conn:Disconnect()
+        end)
+    end
+    table.clear(Connections)
+    if UI.Root then
+        pcall(function()
+            UI.Root:Destroy()
+        end)
+        UI.Root = nil
+    end
+end
