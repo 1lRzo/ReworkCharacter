@@ -398,7 +398,6 @@ function Security.parseCommaList(rawText)
     local list = {}
     for item in string.gmatch(rawText or "", "([^,]+)") do
         local cleaned = Security.normalize(item)
-
         if cleaned ~= "" then
             table.insert(list, cleaned)
         end
@@ -800,7 +799,6 @@ local function playViaAudioAPI(assetId, onFinished)
             error("AudioPlayer não carregou asset customizado")
         end
 
-
         local done = false
         local function cleanup()
             if done then
@@ -1200,7 +1198,6 @@ local function createInputBox(parent, placeholder, defaultText, height, multilin
     box.TextSize = 12
     box.TextXAlignment = Enum.TextXAlignment.Left
     box.MultiLine = multiline == true
-
     box.TextWrapped = multiline == true
     box.TextYAlignment = multiline and Enum.TextYAlignment.Top or Enum.TextYAlignment.Center
     box.Parent = parent
@@ -1602,7 +1599,6 @@ function UI.build(callbacks)
         end
     end
 
-
     for _, item in ipairs(modeList) do
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(0.32, 0, 1, 0)
@@ -2002,7 +1998,6 @@ function UI.build(callbacks)
     cdBox.FocusLost:Connect(function()
         Config.CooldownSeconds = math.clamp(tonumber(cdBox.Text) or Config.CooldownSeconds, 1, 120)
         cdBox.Text = tostring(Config.CooldownSeconds)
-
     end)
     chanceBox.FocusLost:Connect(function()
         Config.RandomReplyChance = math.clamp(math.floor(tonumber(chanceBox.Text) or Config.RandomReplyChance), 0, 100)
@@ -2403,7 +2398,6 @@ function ChatListener.start()
                     Player = player,
                     UserId = player.UserId,
                     Name = player.Name,
-
                     DisplayName = player.DisplayName,
                     Text = messageData.Message,
                 })
