@@ -1,14 +1,14 @@
 --[[
     ════════════════════════════════════════════════════════════════════════
-    ⚡ AI SCRIPT STUDIO PRO (LUA)
+    📱 AI SCRIPT STUDIO PRO (MOBILE READY)
     • API: https://coarena.ai/api/v1/chat/completions
     • Modelos: gpt-6-luna | deepseek-v4-1-flash-1017 | gemini-3-8-flash
-    • Recursos: Seletor de Modelo, Copiar Script, Drag Suave, UI Fluida
+    • Recursos: Sidebar Lateral, Histórico de Sessões, UI Adaptativa
     ════════════════════════════════════════════════════════════════════════
 ]]
 
 -- ====================================================================
---                      CONFIGURAÇÃO PRINCIPAL
+--                      CONFIGURAÇÕES DA API
 -- ====================================================================
 local API_CONFIG = {
     Url = "https://coarena.ai/api/v1/chat/completions",
@@ -18,7 +18,7 @@ local API_CONFIG = {
         "deepseek-v4-1-flash-1017",
         "gemini-3-8-flash"
     },
-    CurrentModel = "gpt-6-luna" -- Modelo padrão ao iniciar
+    CurrentModel = "gpt-6-luna"
 }
 
 -- Serviços
@@ -28,39 +28,54 @@ local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- Identificação do CoreGui compatível
 local CoreGui = game:GetService("CoreGui")
 local ParentGui = (gethui and gethui()) or CoreGui:FindFirstChild("RobloxGui") or CoreGui or LocalPlayer:WaitForChild("PlayerGui")
 
--- Função universal para requisições HTTP
 local httpRequest = (syn and syn.request) or (http and http.request) or http_request or request
--- Função universal para copiar para a área de transferência
-local copyClipboard = setclipboard or toclipboard or function(text) 
-    print("[Clipboard]:", text) 
-end
+local copyClipboard = setclipboard or toclipboard or function(text) print("[Clipboard]:", text) end
 
--- Limpa UI anterior se existir
-if ParentGui:FindFirstChild("AIStudioProGui") then
-    ParentGui.AIStudioProGui:Destroy()
+-- Remove instância anterior
+if ParentGui:FindFirstChild("AIStudioMobileGui") then
+    ParentGui.AIStudioMobileGui:Destroy()
 end
 
 -- ====================================================================
---                      CONSTRUÇÃO DA INTERFACE (UI)
+--                      GERENCIAMENTO DE HISTÓRICO
+-- ====================================================================
+local ChatSessions = {}
+local CurrentSessionId = 1
+local SessionCounter = 1
+
+local function CreateNewSessionData()
+    local newSession = {
+        id = SessionCounter,
+        title = "Conversa " .. SessionCounter,
+        messages = {}
+    }
+    table.insert(ChatSessions, newSession)
+    SessionCounter = SessionCounter + 1
+    return newSession
+end
+
+-- Cria primeira sessão por padrão
+CreateNewSessionData()
+
+-- ====================================================================
+--                      INTERFACE PRINCIPAL (MOBILE)
 -- ====================================================================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AIStudioProGui"
+ScreenGui.Name = "AIStudioMobileGui"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = ParentGui
 
 -- Notificação Flutuante (Toast)
 local function ShowToast(text, color)
     local Toast = Instance.new("Frame")
-    Toast.Size = UDim2.new(0, 220, 0, 36)
-    Toast.Position = UDim2.new(0.5, -110, 0.1, 0)
-    Toast.BackgroundColor3 = color or Color3.fromRGB(30, 160, 90)
-    Toast.BackgroundTransparency = 0.1
+    Toast.Size = UDim2.new(0, 240, 0, 34)
+    Toast.Position = UDim2.new(0.5, -120, 0.04, 0)
+    Toast.BackgroundColor3 = color or Color3.fromRGB(35, 170, 95)
     Toast.BorderSizePixel = 0
-    Toast.ZIndex = 100
+    Toast.ZIndex = 200
     Toast.Parent = ScreenGui
 
     local Corner = Instance.new("UICorner")
@@ -74,317 +89,374 @@ local function ShowToast(text, color)
     Label.TextColor3 = Color3.fromRGB(255, 255, 255)
     Label.Font = Enum.Font.GothamBold
     Label.TextSize = 12
-    Label.ZIndex = 101
+    Label.ZIndex = 201
     Label.Parent = Toast
 
-    Toast.Position = UDim2.new(0.5, -110, 0.05, 0)
-    TweenService:Create(Toast, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, -110, 0.1, 0)}):Play()
+    Toast.Position = UDim2.new(0.5, -120, 0.01, 0)
+    TweenService:Create(Toast, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {Position = UDim2.new(0.5, -120, 0.05, 0)}):Play()
 
-    task.delay(2, function()
-        local tw = TweenService:Create(Toast, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Position = UDim2.new(0.5, -110, 0.05, 0), BackgroundTransparency = 1})
+    task.delay(1.8, function()
+        local tw = TweenService:Create(Toast, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {Position = UDim2.new(0.5, -120, 0.01, 0), BackgroundTransparency = 1})
         tw:Play()
         tw.Completed:Connect(function() Toast:Destroy() end)
     end)
 end
 
--- Frame Principal
+-- Janela Principal (Tamanho Responsivo para Celular)
 local Main = Instance.new("Frame")
 Main.Name = "MainFrame"
-Main.Size = UDim2.new(0, 520, 0, 480)
-Main.Position = UDim2.new(0.5, -260, 0.5, -240)
-Main.BackgroundColor3 = Color3.fromRGB(15, 17, 23)
+Main.AnchorPoint = Vector2.new(0.5, 0.5)
+Main.Size = UDim2.new(0.92, 0, 0.82, 0)
+Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+Main.BackgroundColor3 = Color3.fromRGB(15, 17, 24)
 Main.BorderSizePixel = 0
+Main.ClipsDescendants = true
 Main.Active = true
 Main.Parent = ScreenGui
+
+-- Limites de tamanho para não quebrar em tablets ou celulares muito pequenos
+local SizeConstraint = Instance.new("UISizeConstraint")
+SizeConstraint.MinSize = Vector2.new(300, 320)
+SizeConstraint.MaxSize = Vector2.new(580, 520)
+SizeConstraint.Parent = Main
 
 local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0, 12)
 MainCorner.Parent = Main
 
 local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = Color3.fromRGB(35, 40, 55)
+MainStroke.Color = Color3.fromRGB(36, 42, 58)
 MainStroke.Thickness = 1.2
 MainStroke.Parent = Main
 
--- Top Bar
+-- Barra Superior
 local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 48)
-TopBar.BackgroundColor3 = Color3.fromRGB(20, 24, 33)
+TopBar.Size = UDim2.new(1, 0, 0, 44)
+TopBar.BackgroundColor3 = Color3.fromRGB(21, 25, 35)
 TopBar.BorderSizePixel = 0
+TopBar.ZIndex = 10
 TopBar.Parent = Main
 
 local TopCorner = Instance.new("UICorner")
 TopCorner.CornerRadius = UDim.new(0, 12)
 TopCorner.Parent = TopBar
 
+-- Botão Menu Hambúrguer (Abre Sidebar)
+local MenuBtn = Instance.new("TextButton")
+MenuBtn.Size = UDim2.new(0, 34, 0, 34)
+MenuBtn.Position = UDim2.new(0, 6, 0.5, -17)
+MenuBtn.BackgroundColor3 = Color3.fromRGB(30, 35, 48)
+MenuBtn.Text = "☰"
+MenuBtn.Font = Enum.Font.GothamBold
+MenuBtn.TextColor3 = Color3.fromRGB(230, 230, 240)
+MenuBtn.TextSize = 16
+MenuBtn.ZIndex = 11
+MenuBtn.Parent = TopBar
+
+local MenuCorner = Instance.new("UICorner")
+MenuCorner.CornerRadius = UDim.new(0, 6)
+MenuCorner.Parent = MenuBtn
+
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 200, 1, 0)
-Title.Position = UDim2.new(0, 16, 0, 0)
+Title.Size = UDim2.new(1, -130, 1, 0)
+Title.Position = UDim2.new(0, 46, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "✨ AI Script Studio"
+Title.Text = "⚡ AI Studio Mobile"
 Title.Font = Enum.Font.GothamBold
-Title.TextSize = 15
-Title.TextColor3 = Color3.fromRGB(245, 245, 250)
+Title.TextSize = 14
+Title.TextColor3 = Color3.fromRGB(240, 245, 255)
 Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.ZIndex = 11
 Title.Parent = TopBar
 
--- Botões do Top Bar (Fechar, Minimizar, Limpar)
-local Controls = Instance.new("Frame")
-Controls.Size = UDim2.new(0, 110, 1, 0)
-Controls.Position = UDim2.new(1, -118, 0, 0)
-Controls.BackgroundTransparency = 1
-Controls.Parent = TopBar
+-- Botão Fechar
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 32, 0, 32)
+CloseBtn.Position = UDim2.new(1, -38, 0.5, -16)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(60, 28, 35)
+CloseBtn.Text = "✕"
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextColor3 = Color3.fromRGB(255, 120, 120)
+CloseBtn.TextSize = 12
+CloseBtn.ZIndex = 11
+CloseBtn.Parent = TopBar
 
-local CtrlLayout = Instance.new("UIListLayout")
-CtrlLayout.FillDirection = Enum.FillDirection.Horizontal
-CtrlLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-CtrlLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-CtrlLayout.Padding = UDim.new(0, 6)
-CtrlLayout.Parent = Controls
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseBtn
 
-local function CreateHeaderBtn(txt, color, hoverColor)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 30, 0, 30)
-    btn.BackgroundColor3 = color
-    btn.Text = txt
-    btn.Font = Enum.Font.GothamBold
-    btn.TextColor3 = Color3.fromRGB(240, 240, 240)
-    btn.TextSize = 12
-    btn.Parent = Controls
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
 
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 6)
-    c.Parent = btn
+-- Barra de Seleção de Modelos (Scroll horizontal perfeito para celular)
+local ModelScroll = Instance.new("ScrollingFrame")
+ModelScroll.Size = UDim2.new(1, -16, 0, 30)
+ModelScroll.Position = UDim2.new(0, 8, 0, 48)
+ModelScroll.BackgroundTransparency = 1
+ModelScroll.BorderSizePixel = 0
+ModelScroll.ScrollBarThickness = 0
+ModelScroll.CanvasSize = UDim2.new(0, 420, 0, 0)
+ModelScroll.Parent = Main
 
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = hoverColor}):Play()
-    end)
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = color}):Play()
-    end)
-    return btn
-end
-
-local ClearBtn = CreateHeaderBtn("🗑", Color3.fromRGB(32, 36, 48), Color3.fromRGB(48, 54, 72))
-local MinBtn   = CreateHeaderBtn("—", Color3.fromRGB(32, 36, 48), Color3.fromRGB(48, 54, 72))
-local CloseBtn = CreateHeaderBtn("✕", Color3.fromRGB(60, 30, 35), Color3.fromRGB(95, 35, 42))
-
--- Barra de Seleção de Modelo
-local ModelBar = Instance.new("Frame")
-ModelBar.Size = UDim2.new(1, -24, 0, 32)
-ModelBar.Position = UDim2.new(0, 12, 0, 54)
-ModelBar.BackgroundColor3 = Color3.fromRGB(20, 23, 31)
-ModelBar.Parent = Main
-
-local ModelCorner = Instance.new("UICorner")
-ModelCorner.CornerRadius = UDim.new(0, 8)
-ModelCorner.Parent = ModelBar
-
-local ModelLayout = Instance.new("UIListLayout")
-ModelLayout.FillDirection = Enum.FillDirection.Horizontal
-ModelLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-ModelLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-ModelLayout.Padding = UDim.new(0, 6)
-ModelLayout.Parent = ModelBar
+local ModelList = Instance.new("UIListLayout")
+ModelList.FillDirection = Enum.FillDirection.Horizontal
+ModelList.Padding = UDim.new(0, 6)
+ModelList.Parent = ModelScroll
 
 local ModelButtons = {}
 
-local function UpdateModelSelection(chosenModel)
-    API_CONFIG.CurrentModel = chosenModel
-    for modelName, btn in pairs(ModelButtons) do
-        local isSelected = (modelName == chosenModel)
+local function SelectModel(modelName)
+    API_CONFIG.CurrentModel = modelName
+    for name, btn in pairs(ModelButtons) do
+        local active = (name == modelName)
         TweenService:Create(btn, TweenInfo.new(0.2), {
-            BackgroundColor3 = isSelected and Color3.fromRGB(55, 90, 240) or Color3.fromRGB(28, 32, 44),
-            TextColor3 = isSelected and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 155, 175)
+            BackgroundColor3 = active and Color3.fromRGB(50, 85, 230) or Color3.fromRGB(25, 30, 42),
+            TextColor3 = active and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(140, 145, 165)
         }):Play()
     end
-    ShowToast("Modelo selecionado: " .. chosenModel, Color3.fromRGB(55, 90, 240))
+    ShowToast("Modelo: " .. modelName, Color3.fromRGB(50, 85, 230))
 end
 
-for _, modelName in ipairs(API_CONFIG.AvailableModels) do
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 155, 0, 24)
-    btn.BackgroundColor3 = Color3.fromRGB(28, 32, 44)
-    btn.Text = modelName
-    btn.Font = Enum.Font.GothamMedium
-    btn.TextSize = 10
-    btn.TextColor3 = Color3.fromRGB(150, 155, 175)
-    btn.Parent = ModelBar
+for _, m in ipairs(API_CONFIG.AvailableModels) do
+    local mBtn = Instance.new("TextButton")
+    mBtn.Size = UDim2.new(0, 130, 0, 28)
+    mBtn.BackgroundColor3 = Color3.fromRGB(25, 30, 42)
+    mBtn.Text = m
+    mBtn.Font = Enum.Font.GothamMedium
+    mBtn.TextSize = 10
+    mBtn.TextColor3 = Color3.fromRGB(140, 145, 165)
+    mBtn.Parent = ModelScroll
 
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 6)
-    c.Parent = btn
+    local mc = Instance.new("UICorner")
+    mc.CornerRadius = UDim.new(0, 6)
+    mc.Parent = mBtn
 
-    btn.MouseButton1Click:Connect(function()
-        UpdateModelSelection(modelName)
+    mBtn.MouseButton1Click:Connect(function()
+        SelectModel(m)
     end)
-    ModelButtons[modelName] = btn
+    ModelButtons[m] = mBtn
 end
-UpdateModelSelection(API_CONFIG.CurrentModel)
+SelectModel(API_CONFIG.CurrentModel)
 
 -- Painel de Rolagem das Mensagens
 local ChatScroll = Instance.new("ScrollingFrame")
-ChatScroll.Size = UDim2.new(1, -24, 1, -150)
-ChatScroll.Position = UDim2.new(0, 12, 0, 92)
+ChatScroll.Size = UDim2.new(1, -16, 1, -135)
+ChatScroll.Position = UDim2.new(0, 8, 0, 82)
 ChatScroll.BackgroundTransparency = 1
 ChatScroll.BorderSizePixel = 0
-ChatScroll.ScrollBarThickness = 4
-ChatScroll.ScrollBarImageColor3 = Color3.fromRGB(55, 65, 85)
+ChatScroll.ScrollBarThickness = 3
+ChatScroll.ScrollBarImageColor3 = Color3.fromRGB(50, 60, 80)
 ChatScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 ChatScroll.Parent = Main
 
 local ChatListLayout = Instance.new("UIListLayout")
 ChatListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ChatListLayout.Padding = UDim.new(0, 12)
+ChatListLayout.Padding = UDim.new(0, 10)
 ChatListLayout.Parent = ChatScroll
 
--- Barra Inferior de Entrada
-local InputContainer = Instance.new("Frame")
-InputContainer.Size = UDim2.new(1, -24, 0, 44)
-InputContainer.Position = UDim2.new(0, 12, 1, -52)
-InputContainer.BackgroundColor3 = Color3.fromRGB(20, 23, 31)
-InputContainer.Parent = Main
+-- Entrada Inferior
+local InputFrame = Instance.new("Frame")
+InputFrame.Size = UDim2.new(1, -16, 0, 42)
+InputFrame.Position = UDim2.new(0, 8, 1, -48)
+InputFrame.BackgroundColor3 = Color3.fromRGB(21, 25, 35)
+InputFrame.Parent = Main
 
 local InputCorner = Instance.new("UICorner")
 InputCorner.CornerRadius = UDim.new(0, 8)
-InputCorner.Parent = InputContainer
+InputCorner.Parent = InputFrame
 
 local InputStroke = Instance.new("UIStroke")
-InputStroke.Color = Color3.fromRGB(35, 42, 58)
-InputStroke.Parent = InputContainer
+InputStroke.Color = Color3.fromRGB(36, 42, 58)
+InputStroke.Parent = InputFrame
 
 local TextBox = Instance.new("TextBox")
-TextBox.Size = UDim2.new(1, -100, 1, 0)
-TextBox.Position = UDim2.new(0, 12, 0, 0)
+TextBox.Size = UDim2.new(1, -85, 1, 0)
+TextBox.Position = UDim2.new(0, 10, 0, 0)
 TextBox.BackgroundTransparency = 1
 TextBox.Font = Enum.Font.Gotham
-TextBox.PlaceholderText = "Descreva detalhadamente o script que você deseja..."
+TextBox.PlaceholderText = "Peça o script que deseja..."
 TextBox.PlaceholderColor3 = Color3.fromRGB(100, 105, 125)
 TextBox.Text = ""
 TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-TextBox.TextSize = 13
+TextBox.TextSize = 12
 TextBox.ClearTextOnFocus = false
 TextBox.TextXAlignment = Enum.TextXAlignment.Left
-TextBox.Parent = InputContainer
+TextBox.Parent = InputFrame
 
 local SendBtn = Instance.new("TextButton")
-SendBtn.Size = UDim2.new(0, 85, 0, 32)
-SendBtn.Position = UDim2.new(1, -90, 0, 6)
-SendBtn.BackgroundColor3 = Color3.fromRGB(55, 90, 240)
+SendBtn.Size = UDim2.new(0, 70, 0, 32)
+SendBtn.Position = UDim2.new(1, -75, 0.5, -16)
+SendBtn.BackgroundColor3 = Color3.fromRGB(50, 85, 230)
 SendBtn.Text = "Gerar"
 SendBtn.Font = Enum.Font.GothamBold
 SendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 SendBtn.TextSize = 12
-SendBtn.Parent = InputContainer
+SendBtn.Parent = InputFrame
 
 local SendCorner = Instance.new("UICorner")
 SendCorner.CornerRadius = UDim.new(0, 6)
 SendCorner.Parent = SendBtn
 
 -- ====================================================================
---                  SISTEMA DE ARRASTE & JANELA
+--                      SIDEBAR (GAVETA DE HISTÓRICO)
 -- ====================================================================
-local dragging, dragInput, dragStart, startPos
-TopBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = Main.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
+local SidebarOverlay = Instance.new("TextButton")
+SidebarOverlay.Size = UDim2.new(1, 0, 1, 0)
+SidebarOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+SidebarOverlay.BackgroundTransparency = 1
+SidebarOverlay.Text = ""
+SidebarOverlay.Visible = false
+SidebarOverlay.ZIndex = 50
+SidebarOverlay.Parent = Main
+
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0.75, 0, 1, 0)
+Sidebar.Position = UDim2.new(-0.75, 0, 0, 0)
+Sidebar.BackgroundColor3 = Color3.fromRGB(18, 21, 30)
+Sidebar.BorderSizePixel = 0
+Sidebar.ZIndex = 51
+Sidebar.Parent = Main
+
+local SideCorner = Instance.new("UICorner")
+SideCorner.CornerRadius = UDim.new(0, 12)
+SideCorner.Parent = Sidebar
+
+local SideStroke = Instance.new("UIStroke")
+SideStroke.Color = Color3.fromRGB(36, 42, 58)
+SideStroke.Parent = Sidebar
+
+-- Topo da Sidebar
+local SideHeader = Instance.new("Frame")
+SideHeader.Size = UDim2.new(1, 0, 0, 44)
+SideHeader.BackgroundTransparency = 1
+SideHeader.ZIndex = 52
+SideHeader.Parent = Sidebar
+
+local SideTitle = Instance.new("TextLabel")
+SideTitle.Size = UDim2.new(1, -40, 1, 0)
+SideTitle.Position = UDim2.new(0, 12, 0, 0)
+SideTitle.BackgroundTransparency = 1
+SideTitle.Text = "Conversas"
+SideTitle.Font = Enum.Font.GothamBold
+SideTitle.TextColor3 = Color3.fromRGB(240, 245, 255)
+SideTitle.TextSize = 14
+SideTitle.TextXAlignment = Enum.TextXAlignment.Left
+SideTitle.ZIndex = 53
+SideTitle.Parent = SideHeader
+
+local CloseSideBtn = Instance.new("TextButton")
+CloseSideBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseSideBtn.Position = UDim2.new(1, -36, 0.5, -15)
+CloseSideBtn.BackgroundColor3 = Color3.fromRGB(30, 35, 48)
+CloseSideBtn.Text = "←"
+CloseSideBtn.Font = Enum.Font.GothamBold
+CloseSideBtn.TextColor3 = Color3.fromRGB(200, 205, 225)
+CloseSideBtn.TextSize = 14
+CloseSideBtn.ZIndex = 53
+CloseSideBtn.Parent = SideHeader
+
+local CloseSideCorner = Instance.new("UICorner")
+CloseSideCorner.CornerRadius = UDim.new(0, 6)
+CloseSideCorner.Parent = CloseSideBtn
+
+-- Botão "+ Nova Conversa"
+local NewChatBtn = Instance.new("TextButton")
+NewChatBtn.Size = UDim2.new(1, -20, 0, 36)
+NewChatBtn.Position = UDim2.new(0, 10, 0, 48)
+NewChatBtn.BackgroundColor3 = Color3.fromRGB(38, 140, 75)
+NewChatBtn.Text = "➕ Nova Conversa"
+NewChatBtn.Font = Enum.Font.GothamBold
+NewChatBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+NewChatBtn.TextSize = 12
+NewChatBtn.ZIndex = 52
+NewChatBtn.Parent = Sidebar
+
+local NewChatCorner = Instance.new("UICorner")
+NewChatCorner.CornerRadius = UDim.new(0, 6)
+NewChatCorner.Parent = NewChatBtn
+
+-- Lista de Sessões (Histórico)
+local HistoryScroll = Instance.new("ScrollingFrame")
+HistoryScroll.Size = UDim2.new(1, -20, 1, -95)
+HistoryScroll.Position = UDim2.new(0, 10, 0, 90)
+HistoryScroll.BackgroundTransparency = 1
+HistoryScroll.BorderSizePixel = 0
+HistoryScroll.ScrollBarThickness = 2
+HistoryScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+HistoryScroll.ZIndex = 52
+HistoryScroll.Parent = Sidebar
+
+local HistoryLayout = Instance.new("UIListLayout")
+HistoryLayout.SortOrder = Enum.SortOrder.LayoutOrder
+HistoryLayout.Padding = UDim.new(0, 6)
+HistoryLayout.Parent = HistoryScroll
+
+-- Animação de Abrir e Fechar Sidebar
+local isSidebarOpen = false
+local function ToggleSidebar(state)
+    isSidebarOpen = state
+    if state then
+        SidebarOverlay.Visible = true
+        TweenService:Create(SidebarOverlay, TweenInfo.new(0.2), {BackgroundTransparency = 0.5}):Play()
+        TweenService:Create(Sidebar, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+    else
+        local tw = TweenService:Create(SidebarOverlay, TweenInfo.new(0.2), {BackgroundTransparency = 1})
+        tw:Play()
+        tw.Completed:Connect(function()
+            if not isSidebarOpen then SidebarOverlay.Visible = false end
         end)
+        TweenService:Create(Sidebar, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {Position = UDim2.new(-0.75, 0, 0, 0)}):Play()
     end
-end)
+end
 
-TopBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        local delta = input.Position - dragStart
-        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
--- Fechar Janela
-CloseBtn.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-end)
-
--- Minimizar
-local isMinimized = false
-MinBtn.MouseButton1Click:Connect(function()
-    isMinimized = not isMinimized
-    local targetHeight = isMinimized and 48 or 480
-    ChatScroll.Visible = not isMinimized
-    ModelBar.Visible = not isMinimized
-    InputContainer.Visible = not isMinimized
-    TweenService:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {Size = UDim2.new(0, 520, 0, targetHeight)}):Play()
-end)
-
--- Limpar Histórico
-ClearBtn.MouseButton1Click:Connect(function()
-    for _, child in ipairs(ChatScroll:GetChildren()) do
-        if child:IsA("Frame") then
-            child:Destroy()
-        end
-    end
-    ShowToast("Histórico limpo com sucesso!", Color3.fromRGB(40, 45, 60))
-end)
+MenuBtn.MouseButton1Click:Connect(function() ToggleSidebar(true) end)
+CloseSideBtn.MouseButton1Click:Connect(function() ToggleSidebar(false) end)
+SidebarOverlay.MouseButton1Click:Connect(function() ToggleSidebar(false) end)
 
 -- ====================================================================
---                  CRIADOR DE CARDS DE MENSAGENS
+--                  RENDERIZAÇÃO DO CHAT E MENSAGENS
 -- ====================================================================
-local function AddChatMessage(sender, text, rawCode)
+local function RenderCard(sender, text, rawCode)
     local Card = Instance.new("Frame")
     Card.Size = UDim2.new(1, 0, 0, 0)
-    Card.BackgroundColor3 = (sender == "Você") and Color3.fromRGB(22, 26, 36) or Color3.fromRGB(18, 21, 29)
+    Card.BackgroundColor3 = (sender == "Você") and Color3.fromRGB(22, 26, 38) or Color3.fromRGB(18, 20, 28)
     Card.AutomaticSize = Enum.AutomaticSize.Y
     Card.BorderSizePixel = 0
     Card.Parent = ChatScroll
 
     local CardCorner = Instance.new("UICorner")
-    CardCorner.CornerRadius = UDim.new(0, 10)
+    CardCorner.CornerRadius = UDim.new(0, 8)
     CardCorner.Parent = Card
 
     local CardStroke = Instance.new("UIStroke")
-    CardStroke.Color = Color3.fromRGB(30, 36, 48)
+    CardStroke.Color = Color3.fromRGB(28, 34, 46)
     CardStroke.Parent = Card
 
     local Padding = Instance.new("UIPadding")
-    Padding.PaddingTop = UDim.new(0, 10)
-    Padding.PaddingBottom = UDim.new(0, 10)
-    Padding.PaddingLeft = UDim.new(0, 12)
-    Padding.PaddingRight = UDim.new(0, 12)
+    Padding.PaddingTop = UDim.new(0, 8)
+    Padding.PaddingBottom = UDim.new(0, 8)
+    Padding.PaddingLeft = UDim.new(0, 10)
+    Padding.PaddingRight = UDim.new(0, 10)
     Padding.Parent = Card
 
     local CardLayout = Instance.new("UIListLayout")
     CardLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    CardLayout.Padding = UDim.new(0, 8)
+    CardLayout.Padding = UDim.new(0, 6)
     CardLayout.Parent = Card
 
-    -- Remetente + Modelo Badge
-    local HeaderFrame = Instance.new("Frame")
-    HeaderFrame.Size = UDim2.new(1, 0, 0, 18)
-    HeaderFrame.BackgroundTransparency = 1
-    HeaderFrame.Parent = Card
-
+    -- Remetente
     local SenderLabel = Instance.new("TextLabel")
-    SenderLabel.Size = UDim2.new(0, 100, 1, 0)
+    SenderLabel.Size = UDim2.new(1, 0, 0, 14)
     SenderLabel.BackgroundTransparency = 1
     SenderLabel.Font = Enum.Font.GothamBold
-    SenderLabel.Text = (sender == "Você") and "👤 Você" or "🤖 IA (" .. API_CONFIG.CurrentModel .. ")"
-    SenderLabel.TextColor3 = (sender == "Você") and Color3.fromRGB(110, 150, 255) or Color3.fromRGB(120, 240, 180)
-    SenderLabel.TextSize = 12
+    SenderLabel.Text = (sender == "Você") and "👤 Você" or "🤖 IA Assistant"
+    SenderLabel.TextColor3 = (sender == "Você") and Color3.fromRGB(110, 160, 255) or Color3.fromRGB(110, 235, 160)
+    SenderLabel.TextSize = 11
     SenderLabel.TextXAlignment = Enum.TextXAlignment.Left
-    SenderLabel.Parent = HeaderFrame
+    SenderLabel.Parent = Card
 
-    -- Texto explicativo
+    -- Texto Normal
     if text and text:gsub("%s+", "") ~= "" then
         local Content = Instance.new("TextLabel")
         Content.Size = UDim2.new(1, 0, 0, 0)
@@ -392,138 +464,228 @@ local function AddChatMessage(sender, text, rawCode)
         Content.Font = Enum.Font.Gotham
         Content.Text = text
         Content.TextColor3 = Color3.fromRGB(220, 225, 235)
-        Content.TextSize = 13
+        Content.TextSize = 12
         Content.TextWrapped = true
         Content.AutomaticSize = Enum.AutomaticSize.Y
         Content.TextXAlignment = Enum.TextXAlignment.Left
         Content.Parent = Card
     end
 
-    -- Se houver código gerado, monta o Card de Código Avançado
+    -- Bloco de Código com Botão Copiar
     if rawCode then
-        local CodeContainer = Instance.new("Frame")
-        CodeContainer.Size = UDim2.new(1, 0, 0, 0)
-        CodeContainer.BackgroundColor3 = Color3.fromRGB(11, 13, 18)
-        CodeContainer.AutomaticSize = Enum.AutomaticSize.Y
-        CodeContainer.Parent = Card
+        local CodeBox = Instance.new("Frame")
+        CodeBox.Size = UDim2.new(1, 0, 0, 0)
+        CodeBox.BackgroundColor3 = Color3.fromRGB(12, 14, 20)
+        CodeBox.AutomaticSize = Enum.AutomaticSize.Y
+        CodeBox.Parent = Card
 
         local CodeCorner = Instance.new("UICorner")
-        CodeCorner.CornerRadius = UDim.new(0, 8)
-        CodeCorner.Parent = CodeContainer
+        CodeCorner.CornerRadius = UDim.new(0, 6)
+        CodeCorner.Parent = CodeBox
 
         local CodeStroke = Instance.new("UIStroke")
-        CodeStroke.Color = Color3.fromRGB(40, 50, 70)
-        CodeStroke.Parent = CodeContainer
+        CodeStroke.Color = Color3.fromRGB(35, 45, 65)
+        CodeStroke.Parent = CodeBox
 
         local CodePad = Instance.new("UIPadding")
-        CodePad.PaddingTop = UDim.new(0, 8)
-        CodePad.PaddingBottom = UDim.new(0, 8)
-        CodePad.PaddingLeft = UDim.new(0, 10)
-        CodePad.PaddingRight = UDim.new(0, 10)
-        CodePad.Parent = CodeContainer
+        CodePad.PaddingTop = UDim.new(0, 6)
+        CodePad.PaddingBottom = UDim.new(0, 6)
+        CodePad.PaddingLeft = UDim.new(0, 8)
+        CodePad.PaddingRight = UDim.new(0, 8)
+        CodePad.Parent = CodeBox
 
-        local CodeLayout = Instance.new("UIListLayout")
-        CodeLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        CodeLayout.Padding = UDim.new(0, 8)
-        CodeLayout.Parent = CodeContainer
+        local CodeList = Instance.new("UIListLayout")
+        CodeList.SortOrder = Enum.SortOrder.LayoutOrder
+        CodeList.Padding = UDim.new(0, 6)
+        CodeList.Parent = CodeBox
 
-        -- Cabeçalho do Bloco de Código com Botão Copiar
-        local CodeTop = Instance.new("Frame")
-        CodeTop.Size = UDim2.new(1, 0, 0, 32)
-        CodeTop.BackgroundTransparency = 1
-        CodeTop.Parent = CodeContainer
-
-        local LangLabel = Instance.new("TextLabel")
-        LangLabel.Size = UDim2.new(0, 100, 1, 0)
-        LangLabel.BackgroundTransparency = 1
-        LangLabel.Text = "LUA SCRIPT"
-        LangLabel.Font = Enum.Font.Code
-        LangLabel.TextColor3 = Color3.fromRGB(120, 130, 160)
-        LangLabel.TextSize = 11
-        LangLabel.TextXAlignment = Enum.TextXAlignment.Left
-        LangLabel.Parent = CodeTop
-
-        -- Botão: Copiar Todo o Script
-        local CopyAllBtn = Instance.new("TextButton")
-        CopyAllBtn.Size = UDim2.new(0, 140, 0, 28)
-        CopyAllBtn.Position = UDim2.new(1, -140, 0, 2)
-        CopyAllBtn.BackgroundColor3 = Color3.fromRGB(45, 80, 220)
-        CopyAllBtn.Text = "📋 Copiar Script"
-        CopyAllBtn.Font = Enum.Font.GothamBold
-        CopyAllBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        CopyAllBtn.TextSize = 11
-        CopyAllBtn.Parent = CodeTop
+        -- Botão de Copiar Gigante/Amigável para Celular
+        local CopyBtn = Instance.new("TextButton")
+        CopyBtn.Size = UDim2.new(1, 0, 0, 32)
+        CopyBtn.BackgroundColor3 = Color3.fromRGB(45, 80, 220)
+        CopyBtn.Text = "📋 COPIAR TODO O SCRIPT"
+        CopyBtn.Font = Enum.Font.GothamBold
+        CopyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        CopyBtn.TextSize = 11
+        CopyBtn.Parent = CodeBox
 
         local CopyCorner = Instance.new("UICorner")
         CopyCorner.CornerRadius = UDim.new(0, 6)
-        CopyCorner.Parent = CopyAllBtn
+        CopyCorner.Parent = CopyBtn
 
-        CopyAllBtn.MouseButton1Click:Connect(function()
+        CopyBtn.MouseButton1Click:Connect(function()
             copyClipboard(rawCode)
-            CopyAllBtn.Text = "✔ Copiado!"
-            CopyAllBtn.BackgroundColor3 = Color3.fromRGB(30, 160, 90)
-            ShowToast("Script copiado para a Área de Transferência!", Color3.fromRGB(30, 160, 90))
-            task.wait(2)
-            CopyAllBtn.Text = "📋 Copiar Script"
-            CopyAllBtn.BackgroundColor3 = Color3.fromRGB(45, 80, 220)
+            CopyBtn.Text = "✔ COPIADO COM SUCESSO!"
+            CopyBtn.BackgroundColor3 = Color3.fromRGB(35, 170, 95)
+            ShowToast("Script copiado para o Clipboard!", Color3.fromRGB(35, 170, 95))
+            task.wait(1.5)
+            CopyBtn.Text = "📋 COPIAR TODO O SCRIPT"
+            CopyBtn.BackgroundColor3 = Color3.fromRGB(45, 80, 220)
         end)
 
-        -- Preview do Código
-        local CodePreview = Instance.new("TextLabel")
-        CodePreview.Size = UDim2.new(1, 0, 0, 0)
-        CodePreview.BackgroundTransparency = 1
-        CodePreview.Font = Enum.Font.Code
-        CodePreview.Text = rawCode
-        CodePreview.TextColor3 = Color3.fromRGB(160, 215, 255)
-        CodePreview.TextSize = 11
-        CodePreview.TextWrapped = true
-        CodePreview.AutomaticSize = Enum.AutomaticSize.Y
-        CodePreview.TextXAlignment = Enum.TextXAlignment.Left
-        CodePreview.Parent = CodeContainer
+        -- Texto do Código
+        local CodeLabel = Instance.new("TextLabel")
+        CodeLabel.Size = UDim2.new(1, 0, 0, 0)
+        CodeLabel.BackgroundTransparency = 1
+        CodeLabel.Font = Enum.Font.Code
+        CodeLabel.Text = rawCode
+        CodeLabel.TextColor3 = Color3.fromRGB(160, 220, 255)
+        CodeLabel.TextSize = 10
+        CodeLabel.TextWrapped = true
+        CodeLabel.AutomaticSize = Enum.AutomaticSize.Y
+        CodeLabel.TextXAlignment = Enum.TextXAlignment.Left
+        CodeLabel.Parent = CodeBox
     end
 
-    -- Rola para o fim
     task.defer(function()
         ChatScroll.CanvasPosition = Vector2.new(0, 999999)
     end)
 end
 
+-- Renderiza as mensagens da sessão atual
+local function LoadSessionMessages(session)
+    for _, child in ipairs(ChatScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    for _, msg in ipairs(session.messages) do
+        RenderCard(msg.sender, msg.text, msg.rawCode)
+    end
+    if #session.messages == 0 then
+        RenderCard("Sistema", "Início de uma nova conversa. Digite seu pedido abaixo!", nil)
+    end
+end
+
+-- Atualiza a listagem visual do Histórico na Sidebar
+local function RefreshSidebarHistory()
+    for _, child in ipairs(HistoryScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+
+    for _, session in ipairs(ChatSessions) do
+        local Item = Instance.new("Frame")
+        Item.Size = UDim2.new(1, 0, 0, 36)
+        Item.BackgroundColor3 = (session.id == CurrentSessionId) and Color3.fromRGB(35, 42, 60) or Color3.fromRGB(24, 28, 38)
+        Item.BorderSizePixel = 0
+        Item.ZIndex = 53
+        Item.Parent = HistoryScroll
+
+        local ItemCorner = Instance.new("UICorner")
+        ItemCorner.CornerRadius = UDim.new(0, 6)
+        ItemCorner.Parent = Item
+
+        local Btn = Instance.new("TextButton")
+        Btn.Size = UDim2.new(1, -30, 1, 0)
+        Btn.Position = UDim2.new(0, 8, 0, 0)
+        Btn.BackgroundTransparency = 1
+        Btn.Text = session.title
+        Btn.Font = Enum.Font.GothamMedium
+        Btn.TextSize = 11
+        Btn.TextColor3 = (session.id == CurrentSessionId) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(170, 175, 195)
+        Btn.TextXAlignment = Enum.TextXAlignment.Left
+        Btn.TextTruncate = Enum.TextTruncate.AtEnd
+        Btn.ZIndex = 54
+        Btn.Parent = Item
+
+        Btn.MouseButton1Click:Connect(function()
+            CurrentSessionId = session.id
+            LoadSessionMessages(session)
+            RefreshSidebarHistory()
+            ToggleSidebar(false)
+        end)
+
+        -- Botão Apagar Sessão
+        local DelBtn = Instance.new("TextButton")
+        DelBtn.Size = UDim2.new(0, 24, 0, 24)
+        DelBtn.Position = UDim2.new(1, -26, 0.5, -12)
+        DelBtn.BackgroundTransparency = 1
+        DelBtn.Text = "✕"
+        DelBtn.Font = Enum.Font.GothamBold
+        DelBtn.TextColor3 = Color3.fromRGB(150, 70, 80)
+        DelBtn.TextSize = 10
+        DelBtn.ZIndex = 54
+        DelBtn.Parent = Item
+
+        DelBtn.MouseButton1Click:Connect(function()
+            if #ChatSessions > 1 then
+                for index, s in ipairs(ChatSessions) do
+                    if s.id == session.id then
+                        table.remove(ChatSessions, index)
+                        break
+                    end
+                end
+                if CurrentSessionId == session.id then
+                    CurrentSessionId = ChatSessions[1].id
+                    LoadSessionMessages(ChatSessions[1])
+                end
+                RefreshSidebarHistory()
+            else
+                ShowToast("Não é possível apagar a única conversa!", Color3.fromRGB(180, 60, 60))
+            end
+        end)
+    end
+end
+
+-- Ação do botão "+ Nova Conversa"
+NewChatBtn.MouseButton1Click:Connect(function()
+    local newSess = CreateNewSessionData()
+    CurrentSessionId = newSess.id
+    LoadSessionMessages(newSess)
+    RefreshSidebarHistory()
+    ToggleSidebar(false)
+    ShowToast("Nova conversa iniciada!", Color3.fromRGB(38, 140, 75))
+end)
+
 -- ====================================================================
---                  REQUISIÇÃO PARA A API
+--                  REQUISIÇÃO DA API & FLUXO
 -- ====================================================================
 local isSending = false
 
-local function RequestScriptAI(userPrompt)
+local function RequestScriptAI(promptText)
     if isSending then return end
     if not httpRequest then
-        AddChatMessage("Sistema", "Seu executor não possui a função 'request'/'httpRequest' habilitada.", nil)
+        ShowToast("Executor sem função request!", Color3.fromRGB(180, 50, 50))
         return
     end
 
+    local currentSession
+    for _, s in ipairs(ChatSessions) do
+        if s.id == CurrentSessionId then
+            currentSession = s
+            break
+        end
+    end
+
+    -- Se for a 1ª mensagem da conversa, renomeia o título da sessão
+    if #currentSession.messages == 0 then
+        local preview = promptText:sub(1, 16)
+        if #promptText > 16 then preview = preview .. "..." end
+        currentSession.title = preview
+        RefreshSidebarHistory()
+    end
+
+    table.insert(currentSession.messages, {sender = "Você", text = promptText, rawCode = nil})
+    RenderCard("Você", promptText, nil)
+
     isSending = true
     SendBtn.Text = "..."
-    SendBtn.BackgroundColor3 = Color3.fromRGB(90, 95, 115)
+    SendBtn.BackgroundColor3 = Color3.fromRGB(80, 85, 105)
 
-    AddChatMessage("Você", userPrompt, nil)
-
-    -- Prompt de Engenharia do Sistema: Força a IA a gerar scripts avançados, seguros e prontos
-    local systemPrompt = "Você é um Engenheiro de Software sênior especialista em Lua e Roblox Luau. " ..
-        "Quando o usuário solicitar um recurso ou script, crie códigos completos, modernos, modulares e altamente avançados. " ..
-        "Utilize boas práticas: Services (game:GetService), pcall para proteções, TweenService para animações fluidas e UserInputService. " ..
-        "OBRIGATÓRIO: Sempre coloque o código final Lua completo dentro de um bloco de marcação ```lua ... ``` para que o usuário possa copiá-lo facilmente. " ..
-        "Seja direto e conciso na explicação."
+    local systemPrompt = "Você é um programador especialista em Roblox Luau. " ..
+        "Crie scripts Lua completos, funcionais e avançados de acordo com o pedido do usuário. " ..
+        "Sempre envolva o script principal completo dentro de blocos de código com a sintaxe ```lua [script] ``` para que o usuário possa copiar. " ..
+        "Seja direto e prático."
 
     local payload = {
         model = API_CONFIG.CurrentModel,
         messages = {
             { role = "system", content = systemPrompt },
-            { role = "user", content = userPrompt }
+            { role = "user", content = promptText }
         },
         temperature = 0.5
     }
 
     task.spawn(function()
-        local success, response = pcall(function()
+        local success, res = pcall(function()
             return httpRequest({
                 Url = API_CONFIG.Url,
                 Method = "POST",
@@ -537,41 +699,41 @@ local function RequestScriptAI(userPrompt)
 
         isSending = false
         SendBtn.Text = "Gerar"
-        SendBtn.BackgroundColor3 = Color3.fromRGB(55, 90, 240)
+        SendBtn.BackgroundColor3 = Color3.fromRGB(50, 85, 230)
 
-        if success and response and (response.StatusCode == 200 or response.Status == 200) then
-            local decoded = HttpService:JSONDecode(response.Body)
-            local reply = decoded.choices and decoded.choices[1] and decoded.choices[1].message.content or "Nenhuma resposta gerada."
+        if success and res and (res.StatusCode == 200 or res.Status == 200) then
+            local data = HttpService:JSONDecode(res.Body)
+            local reply = data.choices and data.choices[1] and data.choices[1].message.content or "Sem resposta."
 
-            -- Extração do código Lua
             local code = reply:match("```lua%s*(.-)%s*```") or reply:match("```%s*(.-)%s*```")
-            local cleanText = reply:gsub("```lua.-```", ""):gsub("```.-```", "")
+            local clean = reply:gsub("```lua.-```", ""):gsub("```.-```", "")
 
-            AddChatMessage("IA", cleanText, code)
+            table.insert(currentSession.messages, {sender = "IA", text = clean, rawCode = code})
+            RenderCard("IA", clean, code)
         else
-            local err = response and response.Body or "Falha de conexão com a API."
-            AddChatMessage("Sistema", "Erro na resposta da API (" .. API_CONFIG.CurrentModel .. "): " .. tostring(err), nil)
+            local err = res and res.Body or "Erro de conexão com o servidor."
+            RenderCard("Sistema", "Falha na API: " .. tostring(err), nil)
         end
     end)
 end
 
--- ====================================================================
---                  EVENTOS DE ENVIO
--- ====================================================================
+-- Gatilhos de Envio
 SendBtn.MouseButton1Click:Connect(function()
     if TextBox.Text ~= "" then
-        local msg = TextBox.Text
+        local t = TextBox.Text
         TextBox.Text = ""
-        RequestScriptAI(msg)
+        RequestScriptAI(t)
     end
 end)
 
 TextBox.FocusLost:Connect(function(enterPressed)
     if enterPressed and TextBox.Text ~= "" then
-        local msg = TextBox.Text
+        local t = TextBox.Text
         TextBox.Text = ""
-        RequestScriptAI(msg)
+        RequestScriptAI(t)
     end
 end)
 
-AddChatMessage("Sistema", "Bem-vindo ao AI Script Studio! Escolha o modelo acima e faça seu pedido.", nil)
+-- Inicialização
+RefreshSidebarHistory()
+LoadSessionMessages(ChatSessions[1])
