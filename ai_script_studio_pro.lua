@@ -106,7 +106,7 @@ end
 local Main = Instance.new("Frame")
 Main.Name = "MainFrame"
 Main.AnchorPoint = Vector2.new(0.5, 0.5)
-Main.Size = UDim2.new(0.92, 0, 0.82, 0)
+Main.Size = UDim2.new(0.7, 0, 0.6, 0)
 Main.Position = UDim2.new(0.5, 0, 0.5, 0)
 Main.BackgroundColor3 = Color3.fromRGB(15, 17, 24)
 Main.BorderSizePixel = 0
@@ -116,8 +116,8 @@ Main.Parent = ScreenGui
 
 -- Limites de tamanho para não quebrar em tablets ou celulares muito pequenos
 local SizeConstraint = Instance.new("UISizeConstraint")
-SizeConstraint.MinSize = Vector2.new(300, 320)
-SizeConstraint.MaxSize = Vector2.new(580, 520)
+SizeConstraint.MinSize = Vector2.new(280, 300)
+SizeConstraint.MaxSize = Vector2.new(460, 400)
 SizeConstraint.Parent = Main
 
 local MainCorner = Instance.new("UICorner")
